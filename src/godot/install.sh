@@ -35,7 +35,7 @@ fi
 # Build the asset filename based on flavor
 if [ "$FLAVOR" = "dotnet" ]; then
     ASSET="Godot_v${VERSION}_mono_linux_${ARCH}.zip"
-    INSTALL_NAME="godot-dotnet"
+    INSTALL_NAME="godot"
 else
     ASSET="Godot_v${VERSION}_linux_${ARCH}.zip"
     INSTALL_NAME="godot"
