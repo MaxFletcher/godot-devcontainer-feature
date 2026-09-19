@@ -23,6 +23,5 @@
   },
   "installsAfter": [
     "ghcr.io/devcontainers/features/dotnet"
-  ],
-  "architectures": ["amd64", "arm64"]
+  ]
 }
