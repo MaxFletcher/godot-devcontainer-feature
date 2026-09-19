@@ -1,6 +1,6 @@
 {
   "id": "godot",
-  "version": "1.2.0",
+  "version": "1.0.0",
   "name": "Godot Engine",
   "description": "Installs the Godot game engine (standard or .NET flavor)",
   "keywords": ["godot", "gamedev", "game-engine", "mono", "dotnet"],
