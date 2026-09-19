@@ -1,0 +1,28 @@
+{
+  "id": "godot",
+  "version": "1.2.0",
+  "name": "Godot Engine",
+  "description": "Installs the Godot game engine (standard or .NET flavor)",
+  "keywords": ["godot", "gamedev", "game-engine", "mono", "dotnet"],
+  "containerEnv": {
+    "GODOT_PATH": "/opt/godot"
+  },
+  "options": {
+    "version": {
+      "type": "string",
+      "proposals": ["4.7", "4.6", "4.0", "3.5", "latest"],
+      "default": "latest",
+      "description": "Godot version to install (e.g., '4.7', '4.7-stable', 'latest')"
+    },
+    "flavor": {
+      "type": "string",
+      "enum": ["standard", "dotnet"],
+      "default": "standard",
+      "description": "Godot build flavor: standard (GDScript) or dotnet (C#/.NET support)"
+    }
+  },
+  "installsAfter": [
+    "ghcr.io/devcontainers/features/dotnet"
+  ],
+  "architectures": ["amd64", "arm64"]
+}
