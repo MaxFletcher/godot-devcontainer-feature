@@ -53,15 +53,18 @@ wget -q --show-progress "$DOWNLOAD_URL" -O "/tmp/godot.zip"
 echo "Extracting Godot..."
 unzip -q -o "/tmp/godot.zip" -d /tmp/godot_extract
 
-# Find the Godot executable
-# Standard builds: single binary named "Godot_v{version}_linux.{arch}"
-# Mono builds: binary in root of extracted folder, plus .so files
-GODOT_EXEC=$(find /tmp/godot_extract -maxdepth 1 -type f \( -iname "godot*" -o -iname "*Godot*" \) \
-    ! -iname "*.so" ! -iname "*.pdb" ! -iname "*.zip" 2>/dev/null | head -n 1)
+# Debug: show what was extracted
+echo "Extracted contents:"
+ls -laR /tmp/godot_extract/
+
+# Find the Godot executable recursively
+# Both standard and mono builds have binaries in nested folders
+GODOT_EXEC=$(find /tmp/godot_extract -type f \( -iname "godot*" -o -iname "*Godot*" \) \
+    ! -iname "*.so" ! -iname "*.pdb" ! -iname "*.zip" ! -iname "*.dll" 2>/dev/null | head -n 1)
 
 if [ -z "$GODOT_EXEC" ]; then
     echo "Error: Could not find Godot executable in downloaded archive." >&2
-    ls -la /tmp/godot_extract/ >&2
+    ls -laR /tmp/godot_extract/ >&2
     exit 1
 fi
 
@@ -69,21 +72,30 @@ echo "Found Godot executable: $GODOT_EXEC"
 
 # Copy all files from extract dir to GODOT_DIR (important for mono .so dependencies)
 cp -r /tmp/godot_extract/. "$GODOT_DIR/"
-chmod +x "$GODOT_EXEC"
 
-# Compute final executable path after copy
-FINAL_EXEC="$GODOT_DIR/$(basename "$GODOT_EXEC")"
+# Find the executable in the target directory
+FINAL_EXEC=$(find "$GODOT_DIR" -type f -name "$(basename "$GODOT_EXEC")" 2>/dev/null | head -n 1)
 
-# Verify executable exists and is runnable
-if [ ! -x "$FINAL_EXEC" ]; then
-    echo "Error: Godot executable not found at expected path: $FINAL_EXEC" >&2
-    exit 1
+if [ -z "$FINAL_EXEC" ] || [ ! -x "$FINAL_EXEC" ]; then
+    # Make sure it's executable
+    chmod +x "$GODOT_EXEC" 2>/dev/null || true
+    FINAL_EXEC=$(find "$GODOT_DIR" -type f -name "$(basename "$GODOT_EXEC")" 2>/dev/null | head -n 1)
+    
+    if [ -z "$FINAL_EXEC" ]; then
+        echo "Error: Godot executable not found after copy to $GODOT_DIR." >&2
+        ls -laR "$GODOT_DIR/" >&2
+        exit 1
+    fi
+    
+    chmod +x "$FINAL_EXEC"
 fi
+
+echo "Final executable location: $FINAL_EXEC"
 
 # Create symlink for easy access
 ln -sf "$FINAL_EXEC" "$BIN_DIR/$INSTALL_NAME"
 
-# For standard flavor, also create generic 'godot' symlink if not overwriting
+# For standard flavor, also create generic 'godot' symlink
 [ "$FLAVOR" = "dotnet" ] && ln -sf "$FINAL_EXEC" "$BIN_DIR/godot" || true
 
 # Cleanup
