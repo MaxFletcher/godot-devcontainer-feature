@@ -25,8 +25,7 @@ if [ "$VERSION" = "latest" ]; then
     echo "Latest version detected: ${VERSION}"
 fi
 
-# Normalize version tag:
-# Accepts: "4.2", "4.2-stable", "v4.2.1-stable" -> outputs "v4.2-stable" or "v4.2.1-stable"
+# Normalize version tag
 VERSION=${VERSION#v}
 if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
     VERSION="${VERSION}-stable"
@@ -55,42 +54,67 @@ unzip -q -o "/tmp/godot.zip" -d /tmp/godot_extract
 
 # Debug: show what was extracted
 echo "Extracted contents:"
-ls -laR /tmp/godot_extract/
+find /tmp/godot_extract -type f -exec ls -la {} \;
 
-# Find the Godot executable recursively
-# Both standard and mono builds have binaries in nested folders
-GODOT_EXEC=$(find /tmp/godot_extract -type f \( -iname "godot*" -o -iname "*Godot*" \) \
-    ! -iname "*.so" ! -iname "*.pdb" ! -iname "*.zip" ! -iname "*.dll" 2>/dev/null | head -n 1)
+# Find the Godot executable
+# Mono builds contain:  <version-folder>/Godot_v{version}_mono_linux.{arch}  (the actual binary)
+# It has a DOT before the architecture, not an underscore
+
+# Priority 1: File matching exact mono binary pattern (Linux + dot-arch suffix)
+GODOT_EXEC=$(find /tmp/godot_extract -type f -name "Godot_v*_mono_linux.*" 2>/dev/null | head -n 1)
+
+# Priority 2: Standard Linux binary pattern
+if [ -z "$GODOT_EXEC" ]; then
+    GODOT_EXEC=$(find /tmp/godot_extract -type f -name "Godot_v*_linux.*" 2>/dev/null | head -n 1)
+fi
+
+# Priority 3: Any ELF binary
+if [ -z "$GODOT_EXEC" ]; then
+    echo "Searching for ELF binaries..."
+    while IFS= read -r file; do
+        if file "$file" 2>/dev/null | grep -qi "elf.*executable"; then
+            GODOT_EXEC="$file"
+            break
+        fi
+    done < <(find /tmp/godot_extract -type f 2>/dev/null)
+fi
 
 if [ -z "$GODOT_EXEC" ]; then
     echo "Error: Could not find Godot executable in downloaded archive." >&2
+    echo "Extracted files:" >&2
     ls -laR /tmp/godot_extract/ >&2
     exit 1
 fi
 
 echo "Found Godot executable: $GODOT_EXEC"
 
+# Make it executable before copying
+chmod +x "$GODOT_EXEC"
+
 # Copy all files from extract dir to GODOT_DIR (important for mono .so dependencies)
 cp -r /tmp/godot_extract/. "$GODOT_DIR/"
 
-# Find the executable in the target directory
+# Find the executable in the target directory (should preserve relative path)
 FINAL_EXEC=$(find "$GODOT_DIR" -type f -name "$(basename "$GODOT_EXEC")" 2>/dev/null | head -n 1)
 
-if [ -z "$FINAL_EXEC" ] || [ ! -x "$FINAL_EXEC" ]; then
-    # Make sure it's executable
-    chmod +x "$GODOT_EXEC" 2>/dev/null || true
-    FINAL_EXEC=$(find "$GODOT_DIR" -type f -name "$(basename "$GODOT_EXEC")" 2>/dev/null | head -n 1)
-    
-    if [ -z "$FINAL_EXEC" ]; then
-        echo "Error: Godot executable not found after copy to $GODOT_DIR." >&2
-        ls -laR "$GODOT_DIR/" >&2
-        exit 1
-    fi
-    
-    chmod +x "$FINAL_EXEC"
+if [ -z "$FINAL_EXEC" ]; then
+    echo "Error: Godot executable not found after copy to $GODOT_DIR." >&2
+    ls -laR "$GODOT_DIR/" >&2
+    exit 1
 fi
 
+# Ensure it's executable
+chmod +x "$FINAL_EXEC"
+
 echo "Final executable location: $FINAL_EXEC"
+
+# Verify it's actually a binary (not a config file!)
+FILE_TYPE=$(file -b "$FINAL_EXEC")
+echo "Executable file type: $FILE_TYPE"
+
+if ! echo "$FILE_TYPE" | grep -qi "elf\|executable\|binary"; then
+    echo "Warning: Found file doesn't appear to be a binary ($FILE_TYPE). This may cause issues." >&2
+fi
 
 # Create symlink for easy access
 ln -sf "$FINAL_EXEC" "$BIN_DIR/$INSTALL_NAME"
@@ -112,6 +136,7 @@ echo "Godot installed successfully!"
 echo "  Version: ${INSTALLED_VERSION}${FLAVOR_HINT}"
 echo "  Location: ${GODOT_DIR}"
 echo "  Executable: ${BIN_DIR}/${INSTALL_NAME}"
+echo "  Type: ${FILE_TYPE}"
 echo ""
 echo "Usage:"
 echo "  godot                    # Start editor"
