@@ -1,24 +1,25 @@
-# Godot DevContainer Feature
 
-Installs the Godot game engine into your development container.
+# Godot Engine (godot)
+
+Installs the Godot game engine (standard or .NET flavor)
+
+## Example Usage
+
+```json
+"features": {
+    "ghcr.io/MaxFletcher/godot-devcontainer-feature/godot:1": {}
+}
+```
 
 ## Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `version` | Godot version to install (e.g., "4.7.2", "latest") | latest |
-| `flavor`  | Flavour of Godot to install, can be either "standard" or "dotnet" | standard
+| Options Id | Description | Type | Default Value |
+|-----|-----|-----|-----|
+| version | Godot version to install (e.g., '4.7', '4.7-stable', 'latest') | string | latest |
+| flavor | Godot build flavor: standard (GDScript) or dotnet (C#/.NET support) | string | standard |
 
-## Usage
 
-Add to your `devcontainer.json`:
 
-```json
-{
-  "features": {
-    "ghcr.io/yourusername/devcontainer-features/godot:1": {
-      "version": "4.7.2",
-      "flavor": "dotnet"
-    }
-  }
-}
+---
+
+_Note: This file was auto-generated from the [devcontainer-feature.json](https://github.com/MaxFletcher/godot-devcontainer-feature/blob/main/src/godot/devcontainer-feature.json).  Add additional notes to a `NOTES.md`._
