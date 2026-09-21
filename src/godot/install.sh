@@ -34,11 +34,12 @@ fi
 # Build the asset filename based on flavor
 if [ "$FLAVOR" = "dotnet" ]; then
     ASSET="Godot_v${VERSION}_mono_linux_${ARCH}.zip"
-    INSTALL_NAME="godot"
 else
     ASSET="Godot_v${VERSION}_linux_${ARCH}.zip"
-    INSTALL_NAME="godot"
 fi
+
+# Always use 'godot' as the command name
+INSTALL_NAME="godot"
 
 # Create directories
 mkdir -p "$GODOT_DIR"
@@ -54,12 +55,9 @@ unzip -q -o "/tmp/godot.zip" -d /tmp/godot_extract
 
 # Debug: show what was extracted
 echo "Extracted contents:"
-find /tmp/godot_extract -type f -exec ls -la {} \;
+find /tmp/godot_extract -type f
 
 # Find the Godot executable
-# Mono builds contain:  <version-folder>/Godot_v{version}_mono_linux.{arch}  (the actual binary)
-# It has a DOT before the architecture, not an underscore
-
 # Priority 1: File matching exact mono binary pattern (Linux + dot-arch suffix)
 GODOT_EXEC=$(find /tmp/godot_extract -type f -name "Godot_v*_mono_linux.*" 2>/dev/null | head -n 1)
 
@@ -68,11 +66,12 @@ if [ -z "$GODOT_EXEC" ]; then
     GODOT_EXEC=$(find /tmp/godot_extract -type f -name "Godot_v*_linux.*" 2>/dev/null | head -n 1)
 fi
 
-# Priority 3: Any ELF binary
+# Priority 3: Any ELF binary (using magic bytes check instead of file command)
 if [ -z "$GODOT_EXEC" ]; then
-    echo "Searching for ELF binaries..."
+    echo "Searching for executables by magic bytes..."
     while IFS= read -r file; do
-        if file "$file" 2>/dev/null | grep -qi "elf.*executable"; then
+        # Check if first 4 bytes are ELF magic (0x7f 45 4c 46)
+        if head -c 4 "$file" 2>/dev/null | grep -q "ELF" 2>/dev/null; then
             GODOT_EXEC="$file"
             break
         fi
@@ -108,19 +107,27 @@ chmod +x "$FINAL_EXEC"
 
 echo "Final executable location: $FINAL_EXEC"
 
-# Verify it's actually a binary (not a config file!)
-FILE_TYPE=$(file -b "$FINAL_EXEC")
-echo "Executable file type: $FILE_TYPE"
-
-if ! echo "$FILE_TYPE" | grep -qi "elf\|executable\|binary"; then
-    echo "Warning: Found file doesn't appear to be a binary ($FILE_TYPE). This may cause issues." >&2
+# OPTIONAL: Verify it's actually a binary (skip if `file` command unavailable)
+# This replaces the `file` command with a magic byte check
+if command -v file &> /dev/null; then
+    FILE_TYPE=$(file -b "$FINAL_EXEC" 2>/dev/null || echo "unknown")
+    echo "Executable file type: $FILE_TYPE"
+    
+    if ! echo "$FILE_TYPE" | grep -qi "elf\|executable\|binary"; then
+        echo "Warning: Found file doesn't appear to be a binary ($FILE_TYPE). This may cause issues." >&2
+    fi
+else
+    # Fallback: Just verify it's executable and has content
+    FILE_SIZE=$(stat -c%s "$FINAL_EXEC" 2>/dev/null || stat -f%z "$FINAL_EXEC" 2>/dev/null || echo "0")
+    echo "Executable size: ${FILE_SIZE} bytes (skipping binary type verification - 'file' command not available)"
+    
+    if [ "$FILE_SIZE" -lt 10000 ]; then
+        echo "Warning: Executable seems unusually small (< 10KB). May not be correct." >&2
+    fi
 fi
 
 # Create symlink for easy access
-ln -sf "$FINAL_EXEC" "$BIN_DIR/$INSTALL_NAME"
-
-# For standard flavor, also create generic 'godot' symlink
-[ "$FLAVOR" = "dotnet" ] && ln -sf "$FINAL_EXEC" "$BIN_DIR/godot" || true
+ln -sf "$FINAL_EXEC" "$BIN_DIR/godot"
 
 # Cleanup
 rm -rf /tmp/godot.zip /tmp/godot_extract
@@ -136,7 +143,6 @@ echo "Godot installed successfully!"
 echo "  Version: ${INSTALLED_VERSION}${FLAVOR_HINT}"
 echo "  Location: ${GODOT_DIR}"
 echo "  Executable: ${BIN_DIR}/${INSTALL_NAME}"
-echo "  Type: ${FILE_TYPE}"
 echo ""
 echo "Usage:"
 echo "  godot                    # Start editor"
